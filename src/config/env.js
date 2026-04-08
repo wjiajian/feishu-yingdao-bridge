@@ -10,6 +10,7 @@ function required(name) {
 export function loadEnv() {
   return {
     port: Number(process.env.PORT || 3000),
+    logLevel: process.env.LOG_LEVEL || "info",
     feishu: {
       appId: required("FEISHU_APP_ID"),
       appSecret: required("FEISHU_APP_SECRET"),

@@ -274,6 +274,172 @@ defineTest("同一用户 5 秒内重复点击菜单时记录结构化节流日�
   assert.ok(logs.some((item) => item.event === "feishu.menu.throttled" && item.fields.openId === "ou_123"));
 });
 
+defineTest("超过时效的旧菜单事件不会再次发送卡片", async () => {
+  const sentCards = [];
+  const logs = [];
+  const logger = {
+    info(event, fields) {
+      logs.push({ level: "info", event, fields });
+    },
+    warn(event, fields) {
+      logs.push({ level: "warn", event, fields });
+    },
+    error(event, fields) {
+      logs.push({ level: "error", event, fields });
+    }
+  };
+  const handler = createFeishuHandler({
+    configService: {
+      async getConfig() {
+        return { apps: [appConfig] };
+      }
+    },
+    feishuClient: {
+      async sendCardMessage(payload) {
+        sentCards.push(payload);
+      }
+    },
+    yingdaoService: {
+      async trigger() {
+        throw new Error("不应触发");
+      }
+    },
+    now: () => "2026-04-08T14:25:32+08:00",
+    createRequestId: () => "req-ignored",
+    logger
+  });
+
+  await handler.handleEvent({
+    type: "menu_click",
+    eventId: "evt_old_1",
+    createTime: "1775625606000",
+    eventKey: "open_shadowbot_apps",
+    operator: {
+      openId: "ou_123"
+    },
+    message: {
+      chatId: ""
+    }
+  });
+
+  assert.equal(sentCards.length, 0);
+  assert.ok(logs.some((item) => item.event === "feishu.menu.stale_ignored" && item.fields.eventId === "evt_old_1"));
+});
+
+defineTest("秒级 createTime 在新鲜度边界上仍视为有效菜单事件", async () => {
+  const freshnessWindowMs = 2 * 60_000;
+  const createTimeSeconds = 1_775_625_606;
+  const boundaryNow = new Date(createTimeSeconds * 1_000 + freshnessWindowMs);
+  const sentCards = [];
+  const logs = [];
+  const logger = {
+    info(event, fields) {
+      logs.push({ level: "info", event, fields });
+    },
+    warn(event, fields) {
+      logs.push({ level: "warn", event, fields });
+    },
+    error(event, fields) {
+      logs.push({ level: "error", event, fields });
+    }
+  };
+  const handler = createFeishuHandler({
+    configService: {
+      async getConfig() {
+        return { apps: [appConfig] };
+      }
+    },
+    feishuClient: {
+      async sendCardMessage(payload) {
+        sentCards.push(payload);
+      }
+    },
+    yingdaoService: {
+      async trigger() {
+        throw new Error("不应触发");
+      }
+    },
+    now: () => boundaryNow.toISOString(),
+    createRequestId: () => "req-ignored",
+    maxMenuEventAgeMs: freshnessWindowMs,
+    logger
+  });
+
+  await handler.handleEvent({
+    type: "menu_click",
+    eventId: "evt_seconds_boundary",
+    createTime: "1775625606",
+    eventKey: "open_shadowbot_apps",
+    operator: {
+      openId: "ou_123"
+    },
+    message: {
+      chatId: "oc_xxx"
+    }
+  });
+
+  assert.equal(sentCards.length, 1);
+  assert.ok(logs.some((item) => item.event === "feishu.menu.card_sent" && item.fields.eventId === "evt_seconds_boundary"));
+  assert.equal(logs.some((item) => item.event === "feishu.menu.stale_ignored"), false);
+});
+
+defineTest("数值与字符串形式的秒级 createTime 使用相同归一化规则", async () => {
+  const freshnessWindowMs = 2 * 60_000;
+  const createTimeSeconds = 1_775_625_606;
+  const boundaryNow = new Date(createTimeSeconds * 1_000 + freshnessWindowMs);
+  const sentCards = [];
+  const logs = [];
+  const logger = {
+    info(event, fields) {
+      logs.push({ level: "info", event, fields });
+    },
+    warn(event, fields) {
+      logs.push({ level: "warn", event, fields });
+    },
+    error(event, fields) {
+      logs.push({ level: "error", event, fields });
+    }
+  };
+  const handler = createFeishuHandler({
+    configService: {
+      async getConfig() {
+        return { apps: [appConfig] };
+      }
+    },
+    feishuClient: {
+      async sendCardMessage(payload) {
+        sentCards.push(payload);
+      }
+    },
+    yingdaoService: {
+      async trigger() {
+        throw new Error("不应触发");
+      }
+    },
+    now: () => boundaryNow.toISOString(),
+    createRequestId: () => "req-ignored",
+    maxMenuEventAgeMs: freshnessWindowMs,
+    logger
+  });
+
+  await handler.handleEvent({
+    type: "menu_click",
+    eventId: "evt_seconds_number",
+    createTime: createTimeSeconds,
+    eventKey: "open_shadowbot_apps",
+    operator: {
+      openId: "ou_123"
+    },
+    message: {
+      chatId: "oc_xxx"
+    }
+  });
+
+  assert.equal(sentCards.length, 1);
+  assert.ok(logs.some((item) => item.event === "feishu.menu.card_sent" && item.fields.eventId === "evt_seconds_number"));
+  assert.equal(logs.some((item) => item.event === "feishu.menu.stale_ignored"), false);
+});
+
 defineTest("菜单卡片发送失败后不会把用户卡在 5 秒节流内", async () => {
   let failed = false;
   const sentCards = [];

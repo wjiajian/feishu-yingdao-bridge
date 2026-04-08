@@ -48,6 +48,59 @@ function writeLog(logger, level, event, fields) {
   }
 }
 
+function normalizeTimestamp(value) {
+  if (value === undefined || value === null || value === "") {
+    return Number.NaN;
+  }
+
+  let numericValue = Number.NaN;
+
+  if (typeof value === "number") {
+    numericValue = value;
+  } else {
+    const stringValue = String(value).trim();
+
+    if (stringValue === "") {
+      return Number.NaN;
+    }
+
+    numericValue = Number(stringValue);
+
+    if (!Number.isFinite(numericValue)) {
+      const parsedValue = Date.parse(stringValue);
+      return Number.isFinite(parsedValue) ? parsedValue : Number.NaN;
+    }
+  }
+
+  if (!Number.isFinite(numericValue)) {
+    return Number.NaN;
+  }
+
+  const absoluteValue = Math.abs(Math.trunc(numericValue));
+  const digitCount = absoluteValue === 0 ? 1 : Math.floor(Math.log10(absoluteValue)) + 1;
+
+  return digitCount <= 10 ? numericValue * 1_000 : numericValue;
+}
+
+function isStaleMenuEvent(event, currentTime, maxMenuEventAgeMs) {
+  if (maxMenuEventAgeMs <= 0) {
+    return false;
+  }
+
+  const eventTimestamp = normalizeTimestamp(event.createTime);
+  const currentTimestamp = normalizeTimestamp(currentTime);
+
+  if (!Number.isFinite(eventTimestamp) || !Number.isFinite(currentTimestamp)) {
+    return false;
+  }
+
+  if (eventTimestamp > currentTimestamp) {
+    return false;
+  }
+
+  return currentTimestamp - eventTimestamp > maxMenuEventAgeMs;
+}
+
 function buildMenuLogFields(event, menuEventKey, extraFields = {}) {
   return {
     eventId: event.eventId || "",
@@ -125,6 +178,7 @@ export function createFeishuHandler({
   now = () => new Date().toISOString(),
   createRequestId = () => crypto.randomUUID(),
   menuEventKey = "open_shadowbot_apps",
+  maxMenuEventAgeMs = 2 * 60_000,
   logger = console,
   menuEventGuard = createMenuEventGuard()
 }) {
@@ -135,6 +189,18 @@ export function createFeishuHandler({
       }
 
       if (event.eventKey && event.eventKey !== menuEventKey) {
+        return { ok: true };
+      }
+
+      const currentTime = now();
+
+      if (isStaleMenuEvent(event, currentTime, maxMenuEventAgeMs)) {
+        writeLog(
+          logger,
+          "warn",
+          "feishu.menu.stale_ignored",
+          buildMenuLogFields(event, menuEventKey)
+        );
         return { ok: true };
       }
 
@@ -158,7 +224,6 @@ export function createFeishuHandler({
 
       try {
         const config = await configService.getConfig();
-        const currentTime = now();
         const apps = filterAuthorizedApps({
           apps: config.apps,
           openId: event.operator.openId,

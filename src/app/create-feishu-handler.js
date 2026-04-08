@@ -6,6 +6,7 @@ import {
   buildCancelResultCard,
   buildSubmitSuccessCard
 } from "../core/card-builder.js";
+import { createMenuEventGuard } from "./menu-event-guard.js";
 import { checkAppPermission, filterAuthorizedApps } from "../core/permission-service.js";
 
 function formatDisplayTime(value) {
@@ -36,6 +37,25 @@ function createToast(type, content) {
   return {
     type,
     content
+  };
+}
+
+function writeLog(logger, level, event, fields) {
+  const method = logger?.[level];
+
+  if (typeof method === "function") {
+    method.call(logger, event, fields);
+  }
+}
+
+function buildMenuLogFields(event, menuEventKey, extraFields = {}) {
+  return {
+    eventId: event.eventId || "",
+    openId: event.operator?.openId || "",
+    eventKey: event.eventKey || menuEventKey,
+    createTime: event.createTime || "",
+    chatId: event.message?.chatId || "",
+    ...extraFields
   };
 }
 
@@ -105,7 +125,8 @@ export function createFeishuHandler({
   now = () => new Date().toISOString(),
   createRequestId = () => crypto.randomUUID(),
   menuEventKey = "open_shadowbot_apps",
-  logger = console
+  logger = console,
+  menuEventGuard = createMenuEventGuard()
 }) {
   return {
     async handleEvent(event) {
@@ -113,23 +134,53 @@ export function createFeishuHandler({
         return { ok: true };
       }
 
-       if (event.eventKey && event.eventKey !== menuEventKey) {
+      if (event.eventKey && event.eventKey !== menuEventKey) {
         return { ok: true };
       }
 
-      const config = await configService.getConfig();
-      const apps = filterAuthorizedApps({
-        apps: config.apps,
+      const reservationResult = menuEventGuard.reserve({
+        eventId: event.eventId,
         openId: event.operator.openId,
-        now: now()
+        eventKey: event.eventKey || menuEventKey
       });
-      const card = buildAppListCard({ apps });
 
-      await feishuClient.sendCardMessage({
-        chatId: event.message.chatId,
-        openId: event.operator.openId,
-        card
-      });
+      if (!reservationResult.allowed) {
+        writeLog(
+          logger,
+          "warn",
+          reservationResult.reason === "duplicate_event"
+            ? "feishu.menu.duplicate_ignored"
+            : "feishu.menu.throttled",
+          buildMenuLogFields(event, menuEventKey)
+        );
+        return { ok: true };
+      }
+
+      try {
+        const config = await configService.getConfig();
+        const currentTime = now();
+        const apps = filterAuthorizedApps({
+          apps: config.apps,
+          openId: event.operator.openId,
+          now: currentTime
+        });
+        const card = buildAppListCard({ apps });
+
+        await feishuClient.sendCardMessage({
+          chatId: event.message.chatId,
+          openId: event.operator.openId,
+          card
+        });
+        writeLog(logger, "info", "feishu.menu.card_sent", buildMenuLogFields(event, menuEventKey, {
+          appCount: apps.length
+        }));
+      } catch (error) {
+        menuEventGuard.release(reservationResult.reservation);
+        writeLog(logger, "error", "feishu.menu.card_send_failed", buildMenuLogFields(event, menuEventKey, {
+          error: error instanceof Error ? error.message : String(error)
+        }));
+        throw error;
+      }
 
       return { ok: true };
     },
@@ -140,8 +191,16 @@ export function createFeishuHandler({
       const parsedAction = parseActionName(payload.action.name, actionValue);
       const actionName = parsedAction.actionName;
       const app = findApp(config, parsedAction.appCode);
+      const baseActionFields = {
+        actionName,
+        appCode: parsedAction.appCode,
+        openId: payload.operator.openId,
+        chatId: payload.context?.chatId || "",
+        messageId: payload.context?.messageId || ""
+      };
 
       if (!app) {
+        writeLog(logger, "warn", "feishu.card.app_not_found", baseActionFields);
         return {
           toast: createToast("error", "未找到对应应用")
         };
@@ -154,18 +213,32 @@ export function createFeishuHandler({
       });
 
       if (!permissionResult.allowed) {
+        writeLog(logger, "warn", "feishu.card.permission_denied", {
+          ...baseActionFields,
+          appCode: app.appCode,
+          reason: permissionResult.reason
+        });
         return {
           toast: createToast("error", permissionResult.reason)
         };
       }
 
       if (actionName === "open_app_form") {
+        writeLog(logger, "info", "feishu.card.open_form", {
+          ...baseActionFields,
+          appCode: app.appCode,
+          fieldCount: app.fields?.length || 0
+        });
         return {
           card: buildAppFormCard({ app })
         };
       }
 
       if (actionName === "cancel_app_form") {
+        writeLog(logger, "info", "feishu.card.cancelled", {
+          ...baseActionFields,
+          appCode: app.appCode
+        });
         return {
           card: buildCancelResultCard({
             appName: app.appName
@@ -175,12 +248,22 @@ export function createFeishuHandler({
       }
 
       if (actionName !== "submit_app_form") {
+        writeLog(logger, "warn", "feishu.card.unsupported_action", {
+          ...baseActionFields,
+          appCode: app.appCode
+        });
         return {
           toast: createToast("error", "不支持的动作类型")
         };
       }
 
       if (Number(parsedAction.formVersion) !== Number(app.formVersion)) {
+        writeLog(logger, "warn", "feishu.form.version_expired", {
+          ...baseActionFields,
+          appCode: app.appCode,
+          formVersion: parsedAction.formVersion,
+          currentFormVersion: app.formVersion
+        });
         return {
           toast: createToast("error", "表单版本已过期，请重新打开")
         };
@@ -197,6 +280,12 @@ export function createFeishuHandler({
       }
 
       if (validationErrors.length > 0) {
+        writeLog(logger, "warn", "feishu.form.validation_failed", {
+          ...baseActionFields,
+          appCode: app.appCode,
+          fieldKeys: Object.keys(values),
+          errorCount: validationErrors.length
+        });
         return {
           card: buildAppFormCard({ app, values, errors: validationErrors }),
           toast: createToast("error", validationErrors[0])
@@ -205,9 +294,23 @@ export function createFeishuHandler({
 
       const requestId = createRequestId();
       const submittedAt = now();
+
+      writeLog(logger, "info", "feishu.form.submitted", {
+        ...baseActionFields,
+        appCode: app.appCode,
+        requestId,
+        fieldKeys: Object.keys(values)
+      });
+
       Promise.resolve()
-        .then(() =>
-          yingdaoService.trigger({
+        .then(() => {
+          writeLog(logger, "info", "yingdao.trigger.started", {
+            appCode: app.appCode,
+            openId: payload.operator.openId,
+            requestId,
+            fieldKeys: Object.keys(values)
+          });
+          return yingdaoService.trigger({
             app,
             user: {
               openId: payload.operator.openId,
@@ -216,13 +319,22 @@ export function createFeishuHandler({
             requestId,
             submittedAt,
             values
-          })
-        )
+          });
+        })
+        .then(() => {
+          writeLog(logger, "info", "yingdao.trigger.succeeded", {
+            appCode: app.appCode,
+            openId: payload.operator.openId,
+            requestId
+          });
+        })
         .catch((error) => {
-          logger.error(
-            "[yingdao-trigger] failed:",
-            error instanceof Error ? error.stack || error.message : String(error)
-          );
+          writeLog(logger, "error", "yingdao.trigger.failed", {
+            appCode: app.appCode,
+            openId: payload.operator.openId,
+            requestId,
+            error: error instanceof Error ? error.message : String(error)
+          });
         });
 
       return {

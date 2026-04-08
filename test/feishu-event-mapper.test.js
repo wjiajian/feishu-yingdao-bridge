@@ -7,6 +7,8 @@ defineTest("mapFeishuEvent 识别飞书菜单推送事件", () => {
   const result = mapFeishuEvent({
     schema: "2.0",
     header: {
+      event_id: "evt_1",
+      create_time: "1775614253000",
       event_type: "application.bot.menu_v6"
     },
     event: {
@@ -22,6 +24,8 @@ defineTest("mapFeishuEvent 识别飞书菜单推送事件", () => {
 
   assert.equal(result.kind, "menu_click");
   assert.equal(result.event.type, "menu_click");
+  assert.equal(result.event.eventId, "evt_1");
+  assert.equal(result.event.createTime, "1775614253000");
   assert.equal(result.event.eventKey, "open_shadowbot_apps");
   assert.equal(result.event.operator.openId, "ou_123");
   assert.equal(result.event.message.chatId, "oc_123");

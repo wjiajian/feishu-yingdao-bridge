@@ -1,4 +1,4 @@
-# feishu-shadowbot
+# Feishu-Shadowbot-Bridge
 
 飞书应用机器人通过菜单按钮返回影刀应用卡片，用户在卡片内填写表单并提交，后端根据多维表格配置校验权限后触发影刀高级计划 Webhook。
 

@@ -8,6 +8,47 @@ function createMarkdownBlock(content) {
   };
 }
 
+function createPlainTextBlock(content) {
+  return {
+    tag: "plain_text",
+    content
+  };
+}
+
+function createAppListSummary(app) {
+  return createMarkdownBlock(`**${app.appName}**\n${app.description || "暂无应用说明"}`);
+}
+
+function createAppListNote() {
+  return {
+    tag: "note",
+    elements: [
+      createPlainTextBlock("卡片内填写参数"),
+      createPlainTextBlock("点击按钮后打开表单")
+    ]
+  };
+}
+
+function createAppListAction(app) {
+  return {
+    tag: "action",
+    actions: [
+      {
+        tag: "button",
+        text: {
+          tag: "plain_text",
+          content: "打开表单"
+        },
+        type: "primary_filled",
+        value: {
+          action: "open_app_form",
+          appCode: app.appCode
+        }
+      }
+    ]
+  };
+}
+
 function createTextInput(field, values = {}) {
   return {
     tag: "input",
@@ -98,34 +139,23 @@ function createFieldElement(field, values = {}) {
 
 export function buildAppListCard({ apps }) {
   const elements = [
-    createMarkdownBlock("请选择要触发的影刀应用。")
+    createMarkdownBlock("请选择要触发的影刀应用，点击后可在卡片内直接填写参数。")
   ];
 
   if (!apps?.length) {
-    elements.push(createMarkdownBlock("当前没有可用应用。"));
+    elements.push(createMarkdownBlock("当前没有可触发的影刀应用。"));
   } else {
-    for (const app of apps) {
-      elements.push(
-        {
-          tag: "action",
-          actions: [
-            {
-              tag: "button",
-              text: {
-                tag: "plain_text",
-                content: app.appName
-              },
-              type: "primary",
-              value: {
-                action: "open_app_form",
-                appCode: app.appCode
-              }
-            }
-          ]
-        },
-        createMarkdownBlock(app.description || "无应用说明")
-      );
-    }
+    apps.forEach((app, index) => {
+      elements.push(createAppListSummary(app));
+      elements.push(createAppListNote());
+      elements.push(createAppListAction(app));
+
+      if (index < apps.length - 1) {
+        elements.push({
+          tag: "hr"
+        });
+      }
+    });
   }
 
   return {
@@ -133,6 +163,7 @@ export function buildAppListCard({ apps }) {
       update_multi: true
     },
     header: {
+      template: "blue",
       title: {
         tag: "plain_text",
         content: "可用影刀应用"

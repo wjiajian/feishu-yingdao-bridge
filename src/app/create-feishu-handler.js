@@ -48,6 +48,49 @@ function writeLog(logger, level, event, fields) {
   }
 }
 
+function normalizeTimestamp(value) {
+  if (value === undefined || value === null || value === "") {
+    return Number.NaN;
+  }
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : Number.NaN;
+  }
+
+  const stringValue = String(value).trim();
+
+  if (/^\d+$/.test(stringValue)) {
+    const numericValue = Number(stringValue);
+    if (!Number.isFinite(numericValue)) {
+      return Number.NaN;
+    }
+
+    return stringValue.length <= 10 ? numericValue * 1_000 : numericValue;
+  }
+
+  const parsedValue = Date.parse(stringValue);
+  return Number.isFinite(parsedValue) ? parsedValue : Number.NaN;
+}
+
+function isStaleMenuEvent(event, currentTime, maxMenuEventAgeMs) {
+  if (maxMenuEventAgeMs <= 0) {
+    return false;
+  }
+
+  const eventTimestamp = normalizeTimestamp(event.createTime);
+  const currentTimestamp = normalizeTimestamp(currentTime);
+
+  if (!Number.isFinite(eventTimestamp) || !Number.isFinite(currentTimestamp)) {
+    return false;
+  }
+
+  if (eventTimestamp > currentTimestamp) {
+    return false;
+  }
+
+  return currentTimestamp - eventTimestamp > maxMenuEventAgeMs;
+}
+
 function buildMenuLogFields(event, menuEventKey, extraFields = {}) {
   return {
     eventId: event.eventId || "",
@@ -125,6 +168,7 @@ export function createFeishuHandler({
   now = () => new Date().toISOString(),
   createRequestId = () => crypto.randomUUID(),
   menuEventKey = "open_shadowbot_apps",
+  maxMenuEventAgeMs = 2 * 60_000,
   logger = console,
   menuEventGuard = createMenuEventGuard()
 }) {
@@ -135,6 +179,18 @@ export function createFeishuHandler({
       }
 
       if (event.eventKey && event.eventKey !== menuEventKey) {
+        return { ok: true };
+      }
+
+      const currentTime = now();
+
+      if (isStaleMenuEvent(event, currentTime, maxMenuEventAgeMs)) {
+        writeLog(
+          logger,
+          "warn",
+          "feishu.menu.stale_ignored",
+          buildMenuLogFields(event, menuEventKey)
+        );
         return { ok: true };
       }
 
@@ -158,7 +214,6 @@ export function createFeishuHandler({
 
       try {
         const config = await configService.getConfig();
-        const currentTime = now();
         const apps = filterAuthorizedApps({
           apps: config.apps,
           openId: event.operator.openId,

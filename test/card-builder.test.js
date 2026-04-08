@@ -4,6 +4,7 @@ import { defineTest } from "./test-harness.js";
 import {
   buildAppListCard,
   buildAppFormCard,
+  buildCancelResultCard,
   buildSubmitSuccessCard
 } from "../src/core/card-builder.js";
 
@@ -58,4 +59,13 @@ defineTest("buildSubmitSuccessCard 展示申请编号和时间", () => {
 
   assert.match(card.elements[0].text.content, /req-001/);
   assert.match(card.elements[0].text.content, /2026-04-07 12:30:00/);
+});
+
+defineTest("buildCancelResultCard 展示取消结果", () => {
+  const card = buildCancelResultCard({
+    appName: "请假同步"
+  });
+
+  assert.equal(card.header.title.content, "请假同步");
+  assert.match(card.elements[0].text.content, /已取消/);
 });

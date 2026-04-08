@@ -1,6 +1,11 @@
 import crypto from "node:crypto";
 
-import { buildAppFormCard, buildAppListCard, buildSubmitSuccessCard } from "../core/card-builder.js";
+import {
+  buildAppFormCard,
+  buildAppListCard,
+  buildCancelResultCard,
+  buildSubmitSuccessCard
+} from "../core/card-builder.js";
 import { checkAppPermission, filterAuthorizedApps } from "../core/permission-service.js";
 
 function formatDisplayTime(value) {
@@ -162,6 +167,9 @@ export function createFeishuHandler({
 
       if (actionName === "cancel_app_form") {
         return {
+          card: buildCancelResultCard({
+            appName: app.appName
+          }),
           toast: createToast("info", "已取消")
         };
       }

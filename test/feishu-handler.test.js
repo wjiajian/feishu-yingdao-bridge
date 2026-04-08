@@ -266,3 +266,41 @@ defineTest("表单提交成功卡片中的提交时间按东八区显示", async
 
   assert.match(result.card.elements[0].text.content, /2026-04-08 10:53:48/);
 });
+
+defineTest("取消表单会返回已取消结果卡片", async () => {
+  const handler = createFeishuHandler({
+    configService: {
+      async getConfig() {
+        return { apps: [appConfig] };
+      }
+    },
+    feishuClient: {
+      async sendCardMessage() {
+        throw new Error("不应发送新消息");
+      }
+    },
+    yingdaoService: {
+      async trigger() {
+        throw new Error("不应触发");
+      }
+    },
+    now: () => "2026-04-08T02:53:48.386Z",
+    createRequestId: () => "req-003"
+  });
+
+  const result = await handler.handleCardAction({
+    operator: {
+      openId: "ou_123",
+      name: "张三"
+    },
+    action: {
+      name: "cancel_app_form",
+      value: {
+        appCode: "leave_sync"
+      }
+    }
+  });
+
+  assert.match(result.toast.content, /已取消/);
+  assert.match(result.card.elements[0].text.content, /已取消/);
+});

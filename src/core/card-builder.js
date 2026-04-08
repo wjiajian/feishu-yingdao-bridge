@@ -223,3 +223,18 @@ export function buildSubmitSuccessCard({ appName, requestId, submittedAt, succes
     ]
   };
 }
+
+export function buildCancelResultCard({ appName }) {
+  return {
+    config: {
+      update_multi: false
+    },
+    header: {
+      title: {
+        tag: "plain_text",
+        content: appName
+      }
+    },
+    elements: [createMarkdownBlock("已取消，本次未提交影刀应用。")]
+  };
+}

@@ -1,0 +1,3 @@
+app_code,app_name,enabled,display_order,description,webhook_url,webhook_method,timeout_seconds,success_text,payload_meta_prefix,form_version
+leave_sync,请假同步,true,10,同步请假单到业务系统,https://yingdao.example/webhook/leave-sync,POST,15,已提交，请等待处理,_meta_,1
+expense_sync,报销同步,true,20,同步报销申请到财务流程,https://yingdao.example/webhook/expense-sync,POST,15,已提交，请等待处理,_meta_,1

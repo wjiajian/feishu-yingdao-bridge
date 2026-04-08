@@ -1,0 +1,4 @@
+app_code,feishu_open_id,enabled,valid_from,valid_to,remark
+leave_sync,ou_1234567890,true,2026-04-01 00:00:00,2026-12-31 23:59:59,人事专员
+leave_sync,ou_2234567890,true,2026-04-01 00:00:00,,HRBP
+expense_sync,ou_3234567890,true,2026-04-01 00:00:00,,财务专员

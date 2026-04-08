@@ -1,0 +1,7 @@
+app_code,field_key,option_label,option_value,sort_order,enabled
+leave_sync,leave_type,事假,personal_leave,10,true
+leave_sync,leave_type,病假,sick_leave,20,true
+leave_sync,leave_type,年假,annual_leave,30,true
+expense_sync,expense_type,差旅,travel,10,true
+expense_sync,expense_type,餐补,meal,20,true
+expense_sync,expense_type,办公用品,office_supply,30,true

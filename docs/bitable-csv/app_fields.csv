@@ -1,0 +1,10 @@
+app_code,field_key,field_label,field_type,required,placeholder,default_type,default_value,validation_regex,validation_message,sort_order,enabled
+leave_sync,employee_no,工号,text,true,请输入6位工号,none,,^\d{6}$,工号必须为6位数字,10,true
+leave_sync,leave_type,请假类型,select,true,请选择请假类型,none,,,,20,true
+leave_sync,start_date,开始日期,date,true,请选择开始日期,none,,,,30,true
+leave_sync,end_date,结束日期,date,true,请选择结束日期,none,,,,40,true
+leave_sync,reason,请假原因,textarea,false,请输入请假原因,none,,,,50,true
+expense_sync,employee_no,工号,text,true,请输入6位工号,none,,^\d{6}$,工号必须为6位数字,10,true
+expense_sync,expense_type,报销类型,select,true,请选择报销类型,none,,,,20,true
+expense_sync,amount,金额,number,true,请输入金额,none,,^\d+(\.\d{1,2})?$,金额格式不正确,30,true
+expense_sync,remark,备注,textarea,false,请输入备注,none,,,,40,true

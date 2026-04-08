@@ -3,6 +3,7 @@ import { tests } from "./test-harness.js";
 await import("./config-parser.test.js");
 await import("./env-loader.test.js");
 await import("./feishu-event-mapper.test.js");
+await import("./menu-event-guard.test.js");
 await import("./permission-service.test.js");
 await import("./card-builder.test.js");
 await import("./feishu-callback-response.test.js");

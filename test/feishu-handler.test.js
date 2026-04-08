@@ -55,6 +55,7 @@ defineTest("菜单事件返回当前用户可用应用卡片", async () => {
 
   await handler.handleEvent({
     type: "menu_click",
+    eventId: "evt_1",
     eventKey: "open_shadowbot_apps",
     operator: {
       openId: "ou_123"
@@ -67,6 +68,155 @@ defineTest("菜单事件返回当前用户可用应用卡片", async () => {
   assert.equal(sentCards.length, 1);
   assert.equal(sentCards[0].chatId, "oc_xxx");
   assert.equal(sentCards[0].card.header.title.content, "可用影刀应用");
+});
+
+defineTest("同一菜单事件重复投递时只发送一次卡片", async () => {
+  const sentCards = [];
+  const handler = createFeishuHandler({
+    configService: {
+      async getConfig() {
+        return { apps: [appConfig] };
+      }
+    },
+    feishuClient: {
+      async sendCardMessage(payload) {
+        sentCards.push(payload);
+      }
+    },
+    yingdaoService: {
+      async trigger() {
+        throw new Error("不应触发");
+      }
+    },
+    now: () => "2026-04-07T12:00:00+08:00",
+    createRequestId: () => "req-ignored"
+  });
+
+  const event = {
+    type: "menu_click",
+    eventId: "evt_1",
+    eventKey: "open_shadowbot_apps",
+    operator: {
+      openId: "ou_123"
+    },
+    message: {
+      chatId: "oc_xxx"
+    }
+  };
+
+  await handler.handleEvent(event);
+  await handler.handleEvent(event);
+
+  assert.equal(sentCards.length, 1);
+});
+
+defineTest("同一用户 5 秒内重复点击菜单时只发送一次卡片", async () => {
+  let currentTime = Date.parse("2026-04-07T12:00:00+08:00");
+  const sentCards = [];
+  const handler = createFeishuHandler({
+    configService: {
+      async getConfig() {
+        return { apps: [appConfig] };
+      }
+    },
+    feishuClient: {
+      async sendCardMessage(payload) {
+        sentCards.push(payload);
+      }
+    },
+    yingdaoService: {
+      async trigger() {
+        throw new Error("不应触发");
+      }
+    },
+    now: () => new Date(currentTime).toISOString(),
+    createRequestId: () => "req-ignored"
+  });
+
+  await handler.handleEvent({
+    type: "menu_click",
+    eventId: "evt_1",
+    eventKey: "open_shadowbot_apps",
+    operator: {
+      openId: "ou_123"
+    },
+    message: {
+      chatId: "oc_xxx"
+    }
+  });
+
+  currentTime += 1_000;
+
+  await handler.handleEvent({
+    type: "menu_click",
+    eventId: "evt_2",
+    eventKey: "open_shadowbot_apps",
+    operator: {
+      openId: "ou_123"
+    },
+    message: {
+      chatId: "oc_xxx"
+    }
+  });
+
+  assert.equal(sentCards.length, 1);
+});
+
+defineTest("菜单卡片发送失败后不会把用户卡在 5 秒节流内", async () => {
+  let failed = false;
+  const sentCards = [];
+  const handler = createFeishuHandler({
+    configService: {
+      async getConfig() {
+        return { apps: [appConfig] };
+      }
+    },
+    feishuClient: {
+      async sendCardMessage(payload) {
+        if (!failed) {
+          failed = true;
+          throw new Error("发送失败");
+        }
+
+        sentCards.push(payload);
+      }
+    },
+    yingdaoService: {
+      async trigger() {
+        throw new Error("不应触发");
+      }
+    },
+    now: () => "2026-04-07T12:00:00+08:00",
+    createRequestId: () => "req-ignored"
+  });
+
+  await assert.rejects(() =>
+    handler.handleEvent({
+      type: "menu_click",
+      eventId: "evt_1",
+      eventKey: "open_shadowbot_apps",
+      operator: {
+        openId: "ou_123"
+      },
+      message: {
+        chatId: "oc_xxx"
+      }
+    })
+  );
+
+  await handler.handleEvent({
+    type: "menu_click",
+    eventId: "evt_1",
+    eventKey: "open_shadowbot_apps",
+    operator: {
+      openId: "ou_123"
+    },
+    message: {
+      chatId: "oc_xxx"
+    }
+  });
+
+  assert.equal(sentCards.length, 1);
 });
 
 defineTest("非影刀菜单事件不会发送卡片", async () => {

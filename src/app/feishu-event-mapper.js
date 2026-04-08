@@ -59,6 +59,8 @@ export function mapFeishuEvent(body) {
       kind: "menu_click",
       event: {
         type: "menu_click",
+        eventId: body.header?.event_id || "",
+        createTime: body.header?.create_time || "",
         eventKey: body.event?.event_key || body.event_key || "",
         operator: {
           openId: getOperatorOpenId(body.event, body)

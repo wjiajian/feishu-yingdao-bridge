@@ -6,6 +6,7 @@ import {
   buildCancelResultCard,
   buildSubmitSuccessCard
 } from "../core/card-builder.js";
+import { createMenuEventGuard } from "./menu-event-guard.js";
 import { checkAppPermission, filterAuthorizedApps } from "../core/permission-service.js";
 
 function formatDisplayTime(value) {
@@ -105,7 +106,8 @@ export function createFeishuHandler({
   now = () => new Date().toISOString(),
   createRequestId = () => crypto.randomUUID(),
   menuEventKey = "open_shadowbot_apps",
-  logger = console
+  logger = console,
+  menuEventGuard = createMenuEventGuard()
 }) {
   return {
     async handleEvent(event) {
@@ -113,23 +115,57 @@ export function createFeishuHandler({
         return { ok: true };
       }
 
-       if (event.eventKey && event.eventKey !== menuEventKey) {
+      if (event.eventKey && event.eventKey !== menuEventKey) {
         return { ok: true };
       }
 
-      const config = await configService.getConfig();
-      const apps = filterAuthorizedApps({
-        apps: config.apps,
+      const reservationResult = menuEventGuard.reserve({
+        eventId: event.eventId,
         openId: event.operator.openId,
-        now: now()
+        eventKey: event.eventKey || menuEventKey
       });
-      const card = buildAppListCard({ apps });
 
-      await feishuClient.sendCardMessage({
-        chatId: event.message.chatId,
-        openId: event.operator.openId,
-        card
-      });
+      if (!reservationResult.allowed) {
+        logger.info(
+          `[menu-event] ${reservationResult.reason === "duplicate_event" ? "duplicate event ignored" : "throttled within 5s"}:`,
+          JSON.stringify({
+            eventId: event.eventId || "",
+            openId: event.operator.openId,
+            eventKey: event.eventKey || menuEventKey,
+            createTime: event.createTime || ""
+          })
+        );
+        return { ok: true };
+      }
+
+      try {
+        const config = await configService.getConfig();
+        const currentTime = now();
+        const apps = filterAuthorizedApps({
+          apps: config.apps,
+          openId: event.operator.openId,
+          now: currentTime
+        });
+        const card = buildAppListCard({ apps });
+
+        await feishuClient.sendCardMessage({
+          chatId: event.message.chatId,
+          openId: event.operator.openId,
+          card
+        });
+        logger.info(
+          "[menu-event] card sent:",
+          JSON.stringify({
+            eventId: event.eventId || "",
+            openId: event.operator.openId,
+            eventKey: event.eventKey || menuEventKey,
+            createTime: event.createTime || ""
+          })
+        );
+      } catch (error) {
+        menuEventGuard.release(reservationResult.reservation);
+        throw error;
+      }
 
       return { ok: true };
     },

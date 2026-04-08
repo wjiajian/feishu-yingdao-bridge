@@ -53,23 +53,33 @@ function normalizeTimestamp(value) {
     return Number.NaN;
   }
 
+  let numericValue = Number.NaN;
+
   if (typeof value === "number") {
-    return Number.isFinite(value) ? value : Number.NaN;
-  }
+    numericValue = value;
+  } else {
+    const stringValue = String(value).trim();
 
-  const stringValue = String(value).trim();
-
-  if (/^\d+$/.test(stringValue)) {
-    const numericValue = Number(stringValue);
-    if (!Number.isFinite(numericValue)) {
+    if (stringValue === "") {
       return Number.NaN;
     }
 
-    return stringValue.length <= 10 ? numericValue * 1_000 : numericValue;
+    numericValue = Number(stringValue);
+
+    if (!Number.isFinite(numericValue)) {
+      const parsedValue = Date.parse(stringValue);
+      return Number.isFinite(parsedValue) ? parsedValue : Number.NaN;
+    }
   }
 
-  const parsedValue = Date.parse(stringValue);
-  return Number.isFinite(parsedValue) ? parsedValue : Number.NaN;
+  if (!Number.isFinite(numericValue)) {
+    return Number.NaN;
+  }
+
+  const absoluteValue = Math.abs(Math.trunc(numericValue));
+  const digitCount = absoluteValue === 0 ? 1 : Math.floor(Math.log10(absoluteValue)) + 1;
+
+  return digitCount <= 10 ? numericValue * 1_000 : numericValue;
 }
 
 function isStaleMenuEvent(event, currentTime, maxMenuEventAgeMs) {

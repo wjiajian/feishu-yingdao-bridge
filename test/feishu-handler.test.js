@@ -231,3 +231,38 @@ defineTest("表单提交在字段校验失败时返回错误卡片", async () =>
 
   assert.match(result.toast.content, /工号必须为 6 位数字/);
 });
+
+defineTest("表单提交成功卡片中的提交时间按东八区显示", async () => {
+  const handler = createFeishuHandler({
+    configService: {
+      async getConfig() {
+        return { apps: [appConfig] };
+      }
+    },
+    feishuClient: {
+      async sendCardMessage() {
+        throw new Error("不应发送新消息");
+      }
+    },
+    yingdaoService: {
+      async trigger() {}
+    },
+    now: () => "2026-04-08T02:53:48.386Z",
+    createRequestId: () => "req-002"
+  });
+
+  const result = await handler.handleCardAction({
+    operator: {
+      openId: "ou_123",
+      name: "张三"
+    },
+    action: {
+      name: "submit_app_form:leave_sync:2",
+      value: {
+        employee_no: "123456"
+      }
+    }
+  });
+
+  assert.match(result.card.elements[0].text.content, /2026-04-08 10:53:48/);
+});

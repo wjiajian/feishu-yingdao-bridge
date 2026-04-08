@@ -4,7 +4,27 @@ import { buildAppFormCard, buildAppListCard, buildSubmitSuccessCard } from "../c
 import { checkAppPermission, filterAuthorizedApps } from "../core/permission-service.js";
 
 function formatDisplayTime(value) {
-  return String(value).replace("T", " ").replace(/\+08:00$/, "");
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value).replace("T", " ").replace(/\+08:00$/, "");
+  }
+
+  const formatter = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  });
+
+  const parts = formatter.formatToParts(date);
+  const getValue = (type) => parts.find((item) => item.type === type)?.value ?? "";
+
+  return `${getValue("year")}-${getValue("month")}-${getValue("day")} ${getValue("hour")}:${getValue("minute")}:${getValue("second")}`;
 }
 
 function createToast(type, content) {

@@ -7,6 +7,7 @@
 3. 服务端部署：[服务端实施手册](./service-setup.md)
 4. 多维表格模板：[多维表格模板与字段说明](./bitable-template.md)
 5. CSV 模板文件：[bitable-csv](./bitable-csv/)
+6. Docker 部署说明：[Docker.md](../Docker.md)
 
 建议执行顺序：
 

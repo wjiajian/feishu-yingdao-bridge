@@ -1,0 +1,10 @@
+.env
+.git
+.gitignore
+AGENTS.md
+Dockerfile.example
+docker-example.md
+docs/
+test/
+node_modules/
+npm-debug.log*

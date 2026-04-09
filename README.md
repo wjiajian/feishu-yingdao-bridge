@@ -8,6 +8,7 @@
 - [飞书端实施手册](./docs/feishu-setup.md)
 - [影刀端实施手册](./docs/yingdao-setup.md)
 - [服务端实施手册](./docs/service-setup.md)
+- [Docker 部署说明](./docs/Docker.md)
 
 ## 启动
 

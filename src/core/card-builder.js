@@ -19,12 +19,11 @@ function createAppListSummary(app) {
   return createMarkdownBlock(`**${app.appName}**\n${app.description || "暂无应用说明"}`);
 }
 
-function createAppListNote() {
+function createAppListNote(app) {
   return {
     tag: "note",
     elements: [
-      createPlainTextBlock("卡片内填写参数"),
-      createPlainTextBlock("点击按钮后打开表单")
+      createPlainTextBlock(app.successText || "请在影刀表单中提交")
     ]
   };
 }
@@ -37,109 +36,20 @@ function createAppListAction(app) {
         tag: "button",
         text: {
           tag: "plain_text",
-          content: "打开表单"
+          content: "打开影刀表单"
         },
         type: "primary_filled",
-        value: {
-          action: "open_app_form",
-          appCode: app.appCode
+        multi_url: {
+          url: app.formUrl
         }
       }
     ]
   };
 }
 
-function createTextInput(field, values = {}) {
-  return {
-    tag: "input",
-    name: field.fieldKey,
-    label: {
-      tag: "plain_text",
-      content: `${field.fieldLabel}${field.required ? " *" : ""}`
-    },
-    required: Boolean(field.required),
-    placeholder: {
-      tag: "plain_text",
-      content: field.placeholder || `请输入${field.fieldLabel}`
-    },
-    default_value: values[field.fieldKey] ?? "",
-    width: "fill"
-  };
-}
-
-function createNumberInput(field, values = {}) {
-  return {
-    ...createTextInput(field, values),
-    input_type: "number"
-  };
-}
-
-function createDatePicker(field, values = {}) {
-  return {
-    tag: "date_picker",
-    name: field.fieldKey,
-    required: Boolean(field.required),
-    placeholder: {
-      tag: "plain_text",
-      content: field.placeholder || `请选择${field.fieldLabel}`
-    },
-    value: values[field.fieldKey] ?? ""
-  };
-}
-
-function createSelect(field, values = {}) {
-  return {
-    tag: "select_static",
-    name: field.fieldKey,
-    required: Boolean(field.required),
-    placeholder: {
-      tag: "plain_text",
-      content: field.placeholder || `请选择${field.fieldLabel}`
-    },
-    options: (field.options ?? []).map((option) => ({
-      text: {
-        tag: "plain_text",
-        content: option.label
-      },
-      value: option.value
-    })),
-    initial_option: values[field.fieldKey]
-      ? {
-          text: {
-            tag: "plain_text",
-            content:
-              (field.options ?? []).find((option) => option.value === values[field.fieldKey])?.label ??
-              values[field.fieldKey]
-          },
-          value: values[field.fieldKey]
-        }
-      : undefined
-  };
-}
-
-function createFieldElement(field, values = {}) {
-  switch (field.fieldType) {
-    case "number":
-      return createNumberInput(field, values);
-    case "date":
-    case "datetime":
-      return createDatePicker(field, values);
-    case "select":
-      return createSelect(field, values);
-    case "textarea":
-      return {
-        ...createTextInput(field, values),
-        input_type: "multiline_text"
-      };
-    case "text":
-    default:
-      return createTextInput(field, values);
-  }
-}
-
 export function buildAppListCard({ apps }) {
   const elements = [
-    createMarkdownBlock("请选择要触发的影刀应用，点击后可在卡片内直接填写参数。")
+    createMarkdownBlock("请选择要触发的影刀应用。点击按钮后将跳转到影刀表单。")
   ];
 
   if (!apps?.length) {
@@ -147,7 +57,7 @@ export function buildAppListCard({ apps }) {
   } else {
     apps.forEach((app, index) => {
       elements.push(createAppListSummary(app));
-      elements.push(createAppListNote());
+      elements.push(createAppListNote(app));
       elements.push(createAppListAction(app));
 
       if (index < apps.length - 1) {
@@ -170,102 +80,5 @@ export function buildAppListCard({ apps }) {
       }
     },
     elements
-  };
-}
-
-export function buildAppFormCard({ app, values = {}, errors = [] }) {
-  const formElements = [];
-  const elements = [createMarkdownBlock(app.description || "请填写表单后提交。")];
-
-  if (errors.length > 0) {
-    elements.push(createMarkdownBlock(`**校验失败**\n${errors.join("\n")}`));
-  }
-
-  for (const field of app.fields ?? []) {
-    formElements.push(createFieldElement(field, values));
-  }
-
-  formElements.push({
-    tag: "button",
-    name: `submit_app_form:${app.appCode}:${app.formVersion}`,
-    text: {
-      tag: "plain_text",
-      content: "提交"
-    },
-    type: "primary_filled",
-    form_action_type: "submit",
-    value: {
-      action: "submit_app_form",
-      appCode: app.appCode,
-      formVersion: app.formVersion
-    }
-  });
-
-  elements.push({
-    tag: "form",
-    name: `app_form:${app.appCode}`,
-    elements: formElements
-  });
-
-  elements.push({
-    tag: "action",
-    actions: [
-      {
-        tag: "button",
-        text: {
-          tag: "plain_text",
-          content: "取消"
-        },
-        value: {
-          action: "cancel_app_form",
-          appCode: app.appCode
-        }
-      }
-    ]
-  });
-
-  return {
-    config: {
-      update_multi: false
-    },
-    header: {
-      title: {
-        tag: "plain_text",
-        content: app.appName
-      }
-    },
-    elements
-  };
-}
-
-export function buildSubmitSuccessCard({ appName, requestId, submittedAt, successText }) {
-  return {
-    config: {
-      update_multi: false
-    },
-    header: {
-      title: {
-        tag: "plain_text",
-        content: appName
-      }
-    },
-    elements: [
-      createMarkdownBlock(`${successText || "已提交"}\n申请编号：${requestId}\n提交时间：${submittedAt}`)
-    ]
-  };
-}
-
-export function buildCancelResultCard({ appName }) {
-  return {
-    config: {
-      update_multi: false
-    },
-    header: {
-      title: {
-        tag: "plain_text",
-        content: appName
-      }
-    },
-    elements: [createMarkdownBlock("已取消，本次未提交影刀应用。")]
   };
 }

@@ -1,37 +1,8 @@
 import crypto from "node:crypto";
 
-import {
-  buildAppFormCard,
-  buildAppListCard,
-  buildCancelResultCard,
-  buildSubmitSuccessCard
-} from "../core/card-builder.js";
+import { buildAppListCard } from "../core/card-builder.js";
 import { createMenuEventGuard } from "./menu-event-guard.js";
 import { checkAppPermission, filterAuthorizedApps } from "../core/permission-service.js";
-
-function formatDisplayTime(value) {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return String(value).replace("T", " ").replace(/\+08:00$/, "");
-  }
-
-  const formatter = new Intl.DateTimeFormat("zh-CN", {
-    timeZone: "Asia/Shanghai",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false
-  });
-
-  const parts = formatter.formatToParts(date);
-  const getValue = (type) => parts.find((item) => item.type === type)?.value ?? "";
-
-  return `${getValue("year")}-${getValue("month")}-${getValue("day")} ${getValue("hour")}:${getValue("minute")}:${getValue("second")}`;
-}
 
 function createToast(type, content) {
   return {
@@ -112,35 +83,6 @@ function buildMenuLogFields(event, menuEventKey, extraFields = {}) {
   };
 }
 
-function collectFormValues(app, actionValue) {
-  const values = {};
-
-  for (const field of app.fields ?? []) {
-    if (actionValue[field.fieldKey] !== undefined) {
-      values[field.fieldKey] = actionValue[field.fieldKey];
-    }
-  }
-
-  return values;
-}
-
-function validateField(field, value) {
-  const stringValue = value === undefined || value === null ? "" : String(value).trim();
-
-  if (field.required && !stringValue) {
-    return `${field.fieldLabel}不能为空`;
-  }
-
-  if (stringValue && field.validationRegex) {
-    const regex = new RegExp(field.validationRegex);
-    if (!regex.test(stringValue)) {
-      return field.validationMessage || `${field.fieldLabel}格式不正确`;
-    }
-  }
-
-  return null;
-}
-
 function findApp(config, appCode) {
   return (config.apps ?? []).find((item) => item.appCode === appCode);
 }
@@ -149,32 +91,28 @@ function parseActionName(actionName, actionValue = {}) {
   if (!actionName) {
     return {
       actionName: actionValue.action || "",
-      appCode: actionValue.appCode || "",
-      formVersion: actionValue.formVersion || ""
+      appCode: actionValue.appCode || ""
     };
   }
 
   if (!actionName.includes(":")) {
     return {
       actionName,
-      appCode: actionValue.appCode || "",
-      formVersion: actionValue.formVersion || ""
+      appCode: actionValue.appCode || ""
     };
   }
 
-  const [baseActionName, appCode, formVersion] = actionName.split(":");
+  const [baseActionName, appCode] = actionName.split(":");
 
   return {
     actionName: baseActionName,
-    appCode: appCode || actionValue.appCode || "",
-    formVersion: formVersion || actionValue.formVersion || ""
+    appCode: appCode || actionValue.appCode || ""
   };
 }
 
 export function createFeishuHandler({
   configService,
   feishuClient,
-  yingdaoService,
   now = () => new Date().toISOString(),
   createRequestId = () => crypto.randomUUID(),
   menuEventKey = "open_shadowbot_apps",
@@ -288,128 +226,12 @@ export function createFeishuHandler({
         };
       }
 
-      if (actionName === "open_app_form") {
-        writeLog(logger, "info", "feishu.card.open_form", {
-          ...baseActionFields,
-          appCode: app.appCode,
-          fieldCount: app.fields?.length || 0
-        });
-        return {
-          card: buildAppFormCard({ app })
-        };
-      }
-
-      if (actionName === "cancel_app_form") {
-        writeLog(logger, "info", "feishu.card.cancelled", {
-          ...baseActionFields,
-          appCode: app.appCode
-        });
-        return {
-          card: buildCancelResultCard({
-            appName: app.appName
-          }),
-          toast: createToast("info", "已取消")
-        };
-      }
-
-      if (actionName !== "submit_app_form") {
-        writeLog(logger, "warn", "feishu.card.unsupported_action", {
-          ...baseActionFields,
-          appCode: app.appCode
-        });
-        return {
-          toast: createToast("error", "不支持的动作类型")
-        };
-      }
-
-      if (Number(parsedAction.formVersion) !== Number(app.formVersion)) {
-        writeLog(logger, "warn", "feishu.form.version_expired", {
-          ...baseActionFields,
-          appCode: app.appCode,
-          formVersion: parsedAction.formVersion,
-          currentFormVersion: app.formVersion
-        });
-        return {
-          toast: createToast("error", "表单版本已过期，请重新打开")
-        };
-      }
-
-      const values = collectFormValues(app, actionValue);
-      const validationErrors = [];
-
-      for (const field of app.fields ?? []) {
-        const error = validateField(field, values[field.fieldKey]);
-        if (error) {
-          validationErrors.push(error);
-        }
-      }
-
-      if (validationErrors.length > 0) {
-        writeLog(logger, "warn", "feishu.form.validation_failed", {
-          ...baseActionFields,
-          appCode: app.appCode,
-          fieldKeys: Object.keys(values),
-          errorCount: validationErrors.length
-        });
-        return {
-          card: buildAppFormCard({ app, values, errors: validationErrors }),
-          toast: createToast("error", validationErrors[0])
-        };
-      }
-
-      const requestId = createRequestId();
-      const submittedAt = now();
-
-      writeLog(logger, "info", "feishu.form.submitted", {
+      writeLog(logger, "warn", "feishu.card.unsupported_action", {
         ...baseActionFields,
-        appCode: app.appCode,
-        requestId,
-        fieldKeys: Object.keys(values)
+        appCode: app.appCode
       });
-
-      Promise.resolve()
-        .then(() => {
-          writeLog(logger, "info", "yingdao.trigger.started", {
-            appCode: app.appCode,
-            openId: payload.operator.openId,
-            requestId,
-            fieldKeys: Object.keys(values)
-          });
-          return yingdaoService.trigger({
-            app,
-            user: {
-              openId: payload.operator.openId,
-              name: payload.operator.name || ""
-            },
-            requestId,
-            submittedAt,
-            values
-          });
-        })
-        .then(() => {
-          writeLog(logger, "info", "yingdao.trigger.succeeded", {
-            appCode: app.appCode,
-            openId: payload.operator.openId,
-            requestId
-          });
-        })
-        .catch((error) => {
-          writeLog(logger, "error", "yingdao.trigger.failed", {
-            appCode: app.appCode,
-            openId: payload.operator.openId,
-            requestId,
-            error: error instanceof Error ? error.message : String(error)
-          });
-        });
-
       return {
-        card: buildSubmitSuccessCard({
-          appName: app.appName,
-          requestId,
-          submittedAt: formatDisplayTime(submittedAt),
-          successText: app.successText
-        }),
-        toast: createToast("success", app.successText || "已提交")
+        toast: createToast("error", "不支持的动作类型")
       };
     }
   };

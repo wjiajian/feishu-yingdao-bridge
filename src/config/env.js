@@ -22,8 +22,6 @@ export function loadEnv() {
     bitable: {
       appToken: required("BITABLE_APP_TOKEN"),
       appsTableId: required("BITABLE_APPS_TABLE_ID"),
-      fieldsTableId: required("BITABLE_FIELDS_TABLE_ID"),
-      optionsTableId: required("BITABLE_OPTIONS_TABLE_ID"),
       permissionsTableId: required("BITABLE_PERMISSIONS_TABLE_ID")
     }
   };

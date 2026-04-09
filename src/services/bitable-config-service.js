@@ -15,17 +15,13 @@ export function createBitableConfigService({
         return cachedConfig;
       }
 
-      const [apps, fields, options, permissions] = await Promise.all([
+      const [apps, permissions] = await Promise.all([
         bitableClient.listAllRecords({ appToken: bitable.appToken, tableId: bitable.appsTableId }),
-        bitableClient.listAllRecords({ appToken: bitable.appToken, tableId: bitable.fieldsTableId }),
-        bitableClient.listAllRecords({ appToken: bitable.appToken, tableId: bitable.optionsTableId }),
         bitableClient.listAllRecords({ appToken: bitable.appToken, tableId: bitable.permissionsTableId })
       ]);
 
       cachedConfig = parseBitableConfig({
         apps,
-        fields,
-        options,
         permissions
       });
       expiresAt = now() + cacheTtlMs;

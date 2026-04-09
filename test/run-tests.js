@@ -1,6 +1,8 @@
 import { tests } from "./test-harness.js";
 
 await import("./config-parser.test.js");
+await import("./env.test.js");
+await import("./bitable-config-service.test.js");
 await import("./env-loader.test.js");
 await import("./feishu-event-mapper.test.js");
 await import("./feishu-callback-log.test.js");
@@ -9,7 +11,6 @@ await import("./logger.test.js");
 await import("./permission-service.test.js");
 await import("./card-builder.test.js");
 await import("./feishu-callback-response.test.js");
-await import("./yingdao-service.test.js");
 await import("./feishu-auth.test.js");
 await import("./feishu-handler.test.js");
 

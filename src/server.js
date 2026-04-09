@@ -14,7 +14,6 @@ import { loadDotEnvFile } from "./config/dotenv.js";
 import { loadEnv } from "./config/env.js";
 import { verifyFeishuToken } from "./core/feishu-auth.js";
 import { createLogger } from "./core/logger.js";
-import { createYingdaoService } from "./core/yingdao-service.js";
 import { createBitableConfigService } from "./services/bitable-config-service.js";
 
 loadDotEnvFile();
@@ -61,11 +60,9 @@ try {
     bitableClient,
     bitable: env.bitable
   });
-  const yingdaoService = createYingdaoService({});
   const feishuHandler = createFeishuHandler({
     configService,
     feishuClient,
-    yingdaoService,
     menuEventKey: env.feishu.menuEventKey,
     logger
   });

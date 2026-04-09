@@ -63,10 +63,6 @@ function toStringValue(value, defaultValue = "") {
   return String(normalized);
 }
 
-function compareBySortOrder(left, right) {
-  return left.sortOrder - right.sortOrder;
-}
-
 export function parseBitableConfig(records) {
   const apps = (records.apps ?? [])
     .map((record) => record.fields ?? {})
@@ -77,73 +73,13 @@ export function parseBitableConfig(records) {
       enabled: toBoolean(fields.enabled, true),
       displayOrder: toNumber(fields.display_order, 0),
       description: toStringValue(fields.description),
-      webhookUrl: toStringValue(fields.webhook_url),
-      webhookMethod: toStringValue(fields.webhook_method, "POST").toUpperCase(),
-      timeoutSeconds: toNumber(fields.timeout_seconds, 10),
-      successText: toStringValue(fields.success_text, "已提交"),
-      metaPrefix: toStringValue(fields.payload_meta_prefix, "_meta_"),
-      formVersion: toNumber(fields.form_version, 1),
-      fields: [],
+      formUrl: toStringValue(fields.form_url),
+      successText: toStringValue(fields.success_text, "请在影刀表单中提交"),
       permissions: []
     }))
     .filter((app) => app.appCode);
 
   const appMap = new Map(apps.map((app) => [app.appCode, app]));
-  const optionMap = new Map();
-
-  for (const record of records.options ?? []) {
-    const fields = record.fields ?? {};
-    if (!toBoolean(fields.enabled, true)) {
-      continue;
-    }
-
-    const appCode = toStringValue(fields.app_code);
-    const fieldKey = toStringValue(fields.field_key);
-    const compoundKey = `${appCode}:${fieldKey}`;
-    const list = optionMap.get(compoundKey) ?? [];
-
-    list.push({
-      label: toStringValue(fields.option_label),
-      value: toStringValue(fields.option_value),
-      sortOrder: toNumber(fields.sort_order, 0)
-    });
-
-    optionMap.set(compoundKey, list);
-  }
-
-  for (const record of records.fields ?? []) {
-    const fields = record.fields ?? {};
-    if (!toBoolean(fields.enabled, true)) {
-      continue;
-    }
-
-    const appCode = toStringValue(fields.app_code);
-    const app = appMap.get(appCode);
-    if (!app) {
-      continue;
-    }
-
-    const fieldKey = toStringValue(fields.field_key);
-    if (app.fields.some((item) => item.fieldKey === fieldKey)) {
-      throw new Error(`应用 ${appCode} 的 field_key 重复: ${fieldKey}`);
-    }
-
-    const options = optionMap.get(`${appCode}:${fieldKey}`) ?? [];
-
-    app.fields.push({
-      fieldKey,
-      fieldLabel: toStringValue(fields.field_label),
-      fieldType: toStringValue(fields.field_type, "text"),
-      required: toBoolean(fields.required, false),
-      placeholder: toStringValue(fields.placeholder),
-      defaultType: toStringValue(fields.default_type, "none"),
-      defaultValue: fields.default_value ?? "",
-      validationRegex: toStringValue(fields.validation_regex),
-      validationMessage: toStringValue(fields.validation_message),
-      sortOrder: toNumber(fields.sort_order, 0),
-      options: options.sort(compareBySortOrder)
-    });
-  }
 
   for (const record of records.permissions ?? []) {
     const fields = record.fields ?? {};
@@ -163,10 +99,6 @@ export function parseBitableConfig(records) {
       validTo: toStringValue(fields.valid_to),
       remark: toStringValue(fields.remark)
     });
-  }
-
-  for (const app of apps) {
-    app.fields.sort(compareBySortOrder);
   }
 
   apps.sort((left, right) => left.displayOrder - right.displayOrder);

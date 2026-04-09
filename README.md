@@ -7,6 +7,9 @@
 
 当前实现不再支持飞书卡片内填写参数，也不再支持服务端转发影刀 Webhook。
 
+## 效果展示
+![alt text](resources/效果.png)
+
 ## 文档
 
 - [实施文档总览](./docs/README.md)
@@ -46,7 +49,11 @@
 
 优先检查飞书后台是否已经开启事件订阅，并把回调地址配置成：
 
-`https://你的公网域名/api/feishu/callback`
+`https://你的公网域名:端口/api/feishu/callback`
+
+![alt text](resources/事件配置.png)
+
+![alt text](resources/回调配置.png)
 
 ### 3. 菜单有返回，但应用列表为空
 

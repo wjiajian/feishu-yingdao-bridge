@@ -50,6 +50,28 @@ export function createFeishuClient({
       return getTenantAccessToken();
     },
 
+    async getUserDepartmentIds({ openId }) {
+      if (!openId) {
+        return [];
+      }
+
+      const accessToken = await getTenantAccessToken();
+      const response = await fetchImpl(
+        `${apiBaseUrl}/open-apis/contact/v3/users/${encodeURIComponent(openId)}?user_id_type=open_id&department_id_type=open_department_id`,
+        {
+          method: "GET",
+          headers: buildHeaders(accessToken)
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`获取用户部门失败: ${response.status} ${response.statusText || "Unknown Error"}`);
+      }
+
+      const payload = await response.json();
+      return payload.data?.user?.department_ids ?? [];
+    },
+
     async sendCardMessage({ chatId, openId, card }) {
       const receiveIdType = chatId ? "chat_id" : "open_id";
       const receiveId = chatId || openId;

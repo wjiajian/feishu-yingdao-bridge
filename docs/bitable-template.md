@@ -47,7 +47,8 @@
 | 字段名 | 类型建议 | 必填 | 示例 | 说明 |
 |---|---|---|---|---|
 | `app_code` | 单行文本 | 是 | `expense_form` | 关联应用编码 |
-| `feishu_open_id` | 单行文本 | 是 | `ou_xxx` | 飞书用户唯一标识，必须使用 `open_id` |
+| `feishu_open_id` | 单行文本 | 否 | `ou_xxx` | 飞书用户唯一标识，必须使用 `open_id` |
+| `feishu_department_id` | 单行文本 | 否 | `od-xxxx` | 飞书直属部门标识，必须使用 `department_id` |
 | `enabled` | 复选框 | 是 | `true` | 是否启用授权 |
 | `valid_from` | 日期时间 | 否 | `2026-04-01 00:00:00` | 生效时间，可留空 |
 | `valid_to` | 日期时间 | 否 | `2026-04-30 23:59:59` | 失效时间，可留空 |
@@ -55,14 +56,16 @@
 
 ### 示例数据
 
-| app_code | feishu_open_id | enabled | valid_from | valid_to | remark |
-|---|---|---|---|---|---|
-| `expense_form` | `ou_1234567890` | `true` | `2026-04-01 00:00:00` | `` | `财务专员` |
-| `contract_form` | `ou_2234567890` | `true` | `2026-04-01 00:00:00` | `` | `法务专员` |
+| app_code | feishu_open_id | feishu_department_id | enabled | valid_from | valid_to | remark |
+|---|---|---|---|---|---|---|
+| `expense_form` | `ou_1234567890` | `` | `true` | `2026-04-01 00:00:00` | `` | `财务专员` |
+| `contract_form` | `` | `od-7abcef1234567890` | `true` | `2026-04-01 00:00:00` | `` | `法务部` |
 
 ### 填写约束
 
-- 必须存飞书 `open_id`，不能存姓名、邮箱、手机号
+- `feishu_open_id` 与 `feishu_department_id` 至少填写一个
+- `feishu_open_id` 必须存飞书 `open_id`，不能存姓名、邮箱、手机号
+- `feishu_department_id` 必须存飞书 `department_id`，当前只按直属部门匹配
 - `enabled=false` 表示该授权记录失效
 - `valid_from`、`valid_to` 都可以留空
 - 服务端发卡片前会再次校验权限
@@ -79,9 +82,9 @@
 
 ### `app_permissions`
 
-| app_code | feishu_open_id | enabled | valid_from | valid_to | remark |
-|---|---|---|---|---|---|
-| `expense_form` | `ou_1234567890` | `true` | `2026-04-01 00:00:00` | `` | `测试用户` |
+| app_code | feishu_open_id | feishu_department_id | enabled | valid_from | valid_to | remark |
+|---|---|---|---|---|---|---|
+| `expense_form` | `ou_1234567890` | `` | `true` | `2026-04-01 00:00:00` | `` | `测试用户` |
 
 ## 四、建议维护顺序
 

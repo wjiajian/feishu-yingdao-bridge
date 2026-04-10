@@ -12,6 +12,7 @@ await import("./permission-service.test.js");
 await import("./card-builder.test.js");
 await import("./feishu-callback-response.test.js");
 await import("./feishu-auth.test.js");
+await import("./feishu-client.test.js");
 await import("./feishu-handler.test.js");
 
 let failed = 0;

@@ -87,6 +87,71 @@ function findApp(config, appCode) {
   return (config.apps ?? []).find((item) => item.appCode === appCode);
 }
 
+function cleanupExpiredDepartmentCacheEntries(cache, currentTime) {
+  for (const [key, value] of cache.entries()) {
+    if (value.expiresAt <= currentTime) {
+      cache.delete(key);
+    }
+  }
+}
+
+function trimDepartmentCache(cache, maxSize) {
+  while (cache.size > maxSize) {
+    const oldestKey = cache.keys().next().value;
+    if (!oldestKey) {
+      return;
+    }
+
+    cache.delete(oldestKey);
+  }
+}
+
+function createDepartmentResolver({
+  feishuClient,
+  cacheTtlMs,
+  cacheMaxSize,
+  logger,
+  cacheNow = () => Date.now()
+}) {
+  const cache = new Map();
+
+  return async function resolveDepartmentIds(openId) {
+    if (!openId) {
+      return [];
+    }
+
+    const currentTime = cacheNow();
+    cleanupExpiredDepartmentCacheEntries(cache, currentTime);
+    const cached = cache.get(openId);
+
+    if (cached && cached.expiresAt > currentTime) {
+      cache.delete(openId);
+      cache.set(openId, cached);
+      return cached.departmentIds;
+    }
+
+    let departmentIds = [];
+
+    try {
+      departmentIds = await feishuClient.getUserDepartmentIds({ openId });
+    } catch (error) {
+      writeLog(logger, "warn", "feishu.department.lookup_failed", {
+        openId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return [];
+    }
+
+    cache.set(openId, {
+      departmentIds,
+      expiresAt: currentTime + cacheTtlMs
+    });
+    trimDepartmentCache(cache, cacheMaxSize);
+
+    return departmentIds;
+  };
+}
+
 function parseActionName(actionName, actionValue = {}) {
   if (!actionName) {
     return {
@@ -114,12 +179,21 @@ export function createFeishuHandler({
   configService,
   feishuClient,
   now = () => new Date().toISOString(),
+  departmentCacheTtlMs = 5 * 60_000,
+  departmentCacheMaxSize = 1_000,
   createRequestId = () => crypto.randomUUID(),
   menuEventKey = "open_shadowbot_apps",
   maxMenuEventAgeMs = 2 * 60_000,
   logger = console,
   menuEventGuard = createMenuEventGuard()
 }) {
+  const resolveDepartmentIds = createDepartmentResolver({
+    feishuClient,
+    cacheTtlMs: departmentCacheTtlMs,
+    cacheMaxSize: departmentCacheMaxSize,
+    logger
+  });
+
   return {
     async handleEvent(event) {
       if (event.type !== "menu_click") {
@@ -162,9 +236,11 @@ export function createFeishuHandler({
 
       try {
         const config = await configService.getConfig();
+        const departmentIds = await resolveDepartmentIds(event.operator.openId);
         const apps = filterAuthorizedApps({
           apps: config.apps,
           openId: event.operator.openId,
+          departmentIds,
           now: currentTime
         });
         const card = buildAppListCard({ apps });
@@ -212,6 +288,7 @@ export function createFeishuHandler({
       const permissionResult = checkAppPermission({
         app,
         openId: payload.operator.openId,
+        departmentIds: await resolveDepartmentIds(payload.operator.openId),
         now: now()
       });
 

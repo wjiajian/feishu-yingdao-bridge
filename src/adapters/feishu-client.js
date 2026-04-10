@@ -65,7 +65,7 @@ export function createFeishuClient({
       );
 
       if (!response.ok) {
-        throw new Error(`获取用户部门失败: ${response.status} ${await response.text()}`);
+        throw new Error(`获取用户部门失败: ${response.status} ${response.statusText || "Unknown Error"}`);
       }
 
       const payload = await response.json();

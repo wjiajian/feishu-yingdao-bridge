@@ -411,6 +411,155 @@ defineTest("菜单事件会缓存用户直属部门查询结果", async () => {
   assert.equal(departmentQueryCount, 1);
 });
 
+defineTest("菜单事件在部门查询失败时回退为空部门并继续发卡片", async () => {
+  const sentCards = [];
+  const logs = [];
+  const handler = createFeishuHandler({
+    configService: {
+      async getConfig() {
+        return { apps: [appConfig] };
+      }
+    },
+    feishuClient: {
+      async getUserDepartmentIds() {
+        throw new Error("contact api timeout");
+      },
+      async sendCardMessage(payload) {
+        sentCards.push(payload);
+      }
+    },
+    now: () => "2026-04-07T12:00:00+08:00",
+    logger: {
+      info(event, fields) {
+        logs.push({ level: "info", event, fields });
+      },
+      warn(event, fields) {
+        logs.push({ level: "warn", event, fields });
+      },
+      error(event, fields) {
+        logs.push({ level: "error", event, fields });
+      }
+    }
+  });
+
+  await handler.handleEvent({
+    type: "menu_click",
+    eventId: "evt_fallback_1",
+    eventKey: "open_shadowbot_apps",
+    operator: {
+      openId: "ou_123"
+    },
+    message: {
+      chatId: "oc_xxx"
+    }
+  });
+
+  assert.equal(sentCards.length, 1);
+  assert.ok(logs.some((item) => item.event === "feishu.department.lookup_failed" && item.level === "warn"));
+  assert.match(sentCards[0].card.elements[1].text.content, /\*\*报销表单\*\*/);
+});
+
+defineTest("卡片动作在部门查询失败时回退为空部门并继续按 open_id 鉴权", async () => {
+  const logs = [];
+  const handler = createFeishuHandler({
+    configService: {
+      async getConfig() {
+        return { apps: [appConfig] };
+      }
+    },
+    feishuClient: {
+      async getUserDepartmentIds() {
+        throw new Error("contact api timeout");
+      },
+      async sendCardMessage() {
+        throw new Error("不应发送新消息");
+      }
+    },
+    now: () => "2026-04-08T02:53:48.386Z",
+    logger: {
+      info(event, fields) {
+        logs.push({ level: "info", event, fields });
+      },
+      warn(event, fields) {
+        logs.push({ level: "warn", event, fields });
+      },
+      error(event, fields) {
+        logs.push({ level: "error", event, fields });
+      }
+    }
+  });
+
+  const result = await handler.handleCardAction({
+    operator: {
+      openId: "ou_123",
+      name: "张三"
+    },
+    action: {
+      name: "submit_app_form",
+      value: {
+        appCode: "expense_form"
+      }
+    }
+  });
+
+  assert.match(result.toast.content, /不支持的动作类型/);
+  assert.ok(logs.some((item) => item.event === "feishu.department.lookup_failed" && item.level === "warn"));
+});
+
+defineTest("菜单事件的部门缓存达到上限后会淘汰最早用户", async () => {
+  const sentCards = [];
+  let departmentQueryCount = 0;
+  const handler = createFeishuHandler({
+    configService: {
+      async getConfig() {
+        return { apps: [] };
+      }
+    },
+    feishuClient: {
+      async getUserDepartmentIds({ openId }) {
+        departmentQueryCount += 1;
+        return [`dept-${openId}`];
+      },
+      async sendCardMessage(payload) {
+        sentCards.push(payload);
+      }
+    },
+    departmentCacheMaxSize: 2,
+    now: () => "2026-04-07T12:00:00+08:00",
+    menuEventGuard: {
+      reserve() {
+        return {
+          allowed: true,
+          reservation: {}
+        };
+      },
+      release() {}
+    }
+  });
+
+  for (const [eventId, openId] of [
+    ["evt_limit_1", "ou_1"],
+    ["evt_limit_2", "ou_2"],
+    ["evt_limit_3", "ou_3"],
+    ["evt_limit_4", "ou_1"]
+  ]) {
+    await handler.handleEvent({
+      type: "menu_click",
+      eventId,
+      eventKey: "open_shadowbot_apps",
+      operator: {
+        openId
+      },
+      message: {
+        chatId: "oc_xxx"
+      }
+    });
+  }
+
+  assert.equal(sentCards.length, 4);
+  assert.equal(departmentQueryCount, 4);
+});
+
 defineTest("卡片动作会允许直属部门命中的应用", async () => {
   const handler = createFeishuHandler({
     configService: {

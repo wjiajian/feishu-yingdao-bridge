@@ -51,3 +51,43 @@ defineTest("createFeishuClient 获取用户直属部门 ID 列表", async () => 
   assert.match(requests[1].url, /user_id_type=open_id/);
   assert.equal(requests[1].options.headers.Authorization, "Bearer tenant-token");
 });
+
+defineTest("createFeishuClient 获取用户直属部门失败时不暴露响应体", async () => {
+  const fetchImpl = async (url) => {
+    if (String(url).includes("/auth/v3/tenant_access_token/internal")) {
+      return {
+        ok: true,
+        async json() {
+          return {
+            tenant_access_token: "tenant-token",
+            expire: 7200
+          };
+        }
+      };
+    }
+
+    return {
+      ok: false,
+      status: 503,
+      statusText: "Service Unavailable",
+      async text() {
+        return "{\"secret\":\"should-not-appear\"}";
+      }
+    };
+  };
+
+  const client = createFeishuClient({
+    appId: "cli_a",
+    appSecret: "secret",
+    fetchImpl
+  });
+
+  await assert.rejects(
+    () => client.getUserDepartmentIds({ openId: "ou_123" }),
+    (error) => {
+      assert.match(error.message, /503 Service Unavailable/);
+      assert.doesNotMatch(error.message, /should-not-appear/);
+      return true;
+    }
+  );
+});

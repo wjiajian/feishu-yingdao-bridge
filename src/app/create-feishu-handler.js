@@ -87,9 +87,30 @@ function findApp(config, appCode) {
   return (config.apps ?? []).find((item) => item.appCode === appCode);
 }
 
+function cleanupExpiredDepartmentCacheEntries(cache, currentTime) {
+  for (const [key, value] of cache.entries()) {
+    if (value.expiresAt <= currentTime) {
+      cache.delete(key);
+    }
+  }
+}
+
+function trimDepartmentCache(cache, maxSize) {
+  while (cache.size > maxSize) {
+    const oldestKey = cache.keys().next().value;
+    if (!oldestKey) {
+      return;
+    }
+
+    cache.delete(oldestKey);
+  }
+}
+
 function createDepartmentResolver({
   feishuClient,
   cacheTtlMs,
+  cacheMaxSize,
+  logger,
   cacheNow = () => Date.now()
 }) {
   const cache = new Map();
@@ -100,17 +121,32 @@ function createDepartmentResolver({
     }
 
     const currentTime = cacheNow();
+    cleanupExpiredDepartmentCacheEntries(cache, currentTime);
     const cached = cache.get(openId);
 
     if (cached && cached.expiresAt > currentTime) {
+      cache.delete(openId);
+      cache.set(openId, cached);
       return cached.departmentIds;
     }
 
-    const departmentIds = await feishuClient.getUserDepartmentIds({ openId });
+    let departmentIds = [];
+
+    try {
+      departmentIds = await feishuClient.getUserDepartmentIds({ openId });
+    } catch (error) {
+      writeLog(logger, "warn", "feishu.department.lookup_failed", {
+        openId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return [];
+    }
+
     cache.set(openId, {
       departmentIds,
       expiresAt: currentTime + cacheTtlMs
     });
+    trimDepartmentCache(cache, cacheMaxSize);
 
     return departmentIds;
   };
@@ -144,6 +180,7 @@ export function createFeishuHandler({
   feishuClient,
   now = () => new Date().toISOString(),
   departmentCacheTtlMs = 5 * 60_000,
+  departmentCacheMaxSize = 1_000,
   createRequestId = () => crypto.randomUUID(),
   menuEventKey = "open_shadowbot_apps",
   maxMenuEventAgeMs = 2 * 60_000,
@@ -152,7 +189,9 @@ export function createFeishuHandler({
 }) {
   const resolveDepartmentIds = createDepartmentResolver({
     feishuClient,
-    cacheTtlMs: departmentCacheTtlMs
+    cacheTtlMs: departmentCacheTtlMs,
+    cacheMaxSize: departmentCacheMaxSize,
+    logger
   });
 
   return {

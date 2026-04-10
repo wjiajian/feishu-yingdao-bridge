@@ -18,7 +18,7 @@ function isInValidityWindow(permission, now) {
   return true;
 }
 
-export function checkAppPermission({ app, openId, now }) {
+export function checkAppPermission({ app, openId, departmentIds = [], now }) {
   if (!app?.enabled) {
     return {
       allowed: false,
@@ -26,8 +26,17 @@ export function checkAppPermission({ app, openId, now }) {
     };
   }
 
+  const departmentIdSet = new Set(departmentIds.filter(Boolean));
   const matched = (app.permissions ?? []).find((permission) => {
-    return permission.enabled !== false && permission.openId === openId && isInValidityWindow(permission, now);
+    if (permission.enabled === false || !isInValidityWindow(permission, now)) {
+      return false;
+    }
+
+    if (permission.openId && permission.openId === openId) {
+      return true;
+    }
+
+    return Boolean(permission.departmentId) && departmentIdSet.has(permission.departmentId);
   });
 
   if (!matched) {
@@ -42,6 +51,6 @@ export function checkAppPermission({ app, openId, now }) {
   };
 }
 
-export function filterAuthorizedApps({ apps, openId, now }) {
-  return (apps ?? []).filter((app) => checkAppPermission({ app, openId, now }).allowed);
+export function filterAuthorizedApps({ apps, openId, departmentIds = [], now }) {
+  return (apps ?? []).filter((app) => checkAppPermission({ app, openId, departmentIds, now }).allowed);
 }

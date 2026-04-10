@@ -87,6 +87,35 @@ function findApp(config, appCode) {
   return (config.apps ?? []).find((item) => item.appCode === appCode);
 }
 
+function createDepartmentResolver({
+  feishuClient,
+  cacheTtlMs,
+  cacheNow = () => Date.now()
+}) {
+  const cache = new Map();
+
+  return async function resolveDepartmentIds(openId) {
+    if (!openId) {
+      return [];
+    }
+
+    const currentTime = cacheNow();
+    const cached = cache.get(openId);
+
+    if (cached && cached.expiresAt > currentTime) {
+      return cached.departmentIds;
+    }
+
+    const departmentIds = await feishuClient.getUserDepartmentIds({ openId });
+    cache.set(openId, {
+      departmentIds,
+      expiresAt: currentTime + cacheTtlMs
+    });
+
+    return departmentIds;
+  };
+}
+
 function parseActionName(actionName, actionValue = {}) {
   if (!actionName) {
     return {
@@ -114,12 +143,18 @@ export function createFeishuHandler({
   configService,
   feishuClient,
   now = () => new Date().toISOString(),
+  departmentCacheTtlMs = 5 * 60_000,
   createRequestId = () => crypto.randomUUID(),
   menuEventKey = "open_shadowbot_apps",
   maxMenuEventAgeMs = 2 * 60_000,
   logger = console,
   menuEventGuard = createMenuEventGuard()
 }) {
+  const resolveDepartmentIds = createDepartmentResolver({
+    feishuClient,
+    cacheTtlMs: departmentCacheTtlMs
+  });
+
   return {
     async handleEvent(event) {
       if (event.type !== "menu_click") {
@@ -162,9 +197,11 @@ export function createFeishuHandler({
 
       try {
         const config = await configService.getConfig();
+        const departmentIds = await resolveDepartmentIds(event.operator.openId);
         const apps = filterAuthorizedApps({
           apps: config.apps,
           openId: event.operator.openId,
+          departmentIds,
           now: currentTime
         });
         const card = buildAppListCard({ apps });
@@ -212,6 +249,7 @@ export function createFeishuHandler({
       const permissionResult = checkAppPermission({
         app,
         openId: payload.operator.openId,
+        departmentIds: await resolveDepartmentIds(payload.operator.openId),
         now: now()
       });
 

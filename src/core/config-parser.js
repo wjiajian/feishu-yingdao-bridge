@@ -94,6 +94,7 @@ export function parseBitableConfig(records) {
 
     app.permissions.push({
       openId: toStringValue(fields.feishu_open_id),
+      departmentId: toStringValue(fields.feishu_department_id),
       enabled: toBoolean(fields.enabled, true),
       validFrom: toStringValue(fields.valid_from),
       validTo: toStringValue(fields.valid_to),

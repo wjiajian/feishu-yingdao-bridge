@@ -69,7 +69,7 @@ URL 包含 “?” 或 “#” 后缀时，如何设置重定向 URL？
 
 ## 六、飞书侧联调
 
-1. 在 `app_permissions` 里给测试用户增加授权
+1. 在 `app_permissions` 里给测试用户或测试部门增加授权
 2. 在 `apps` 里配置至少 1 个影刀分享表单地址
 3. 用已授权用户点击“影刀应用”菜单
 4. 确认卡片里能看到“打开影刀表单”按钮
@@ -91,6 +91,7 @@ URL 包含 “?” 或 “#” 后缀时，如何设置重定向 URL？
 
 - `apps.enabled` 是否开启
 - `app_permissions.feishu_open_id` 是否填写真实 `open_id`
+- `app_permissions.feishu_department_id` 是否填写真实 `department_id`
 - 当前用户是否在授权范围内
 
 ### 3. 按钮点击后没有跳转

@@ -8,7 +8,7 @@
 
 1. 接收飞书菜单事件和卡片动作回调
 2. 读取多维表格中的应用与权限配置
-3. 按 `open_id` 判断用户可见应用
+3. 按 `open_id` 或直属 `department_id` 判断用户可见应用
 4. 生成应用列表卡片
 5. 为每个应用提供跳转到影刀分享表单的按钮
 
@@ -61,6 +61,7 @@
 - 只读取启用状态记录
 - `apps` 决定展示信息和跳转地址
 - `app_permissions` 决定用户授权
+- `feishu_open_id` 与 `feishu_department_id` 任一命中都可以放行
 
 ### 4. 卡片构建
 
@@ -112,6 +113,7 @@ curl https://你的域名/healthz
 
 - `apps.enabled` 是否为 `true`
 - `app_permissions.feishu_open_id` 是否正确
+- `app_permissions.feishu_department_id` 是否正确
 - 当前用户是否仍在有效期内
 
 ### 2. 按钮没有跳转
